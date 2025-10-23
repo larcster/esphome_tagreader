@@ -29,8 +29,14 @@ For the LED:
 |GNd      | GND               | Again, can be connected on an available GND on the P532, but the lolin has two pins for GND |
 | Din     | GPIO2             ||
 
+# Building
+Either install ESPhome on your computer or build directly in Home Assistant's ESPhome Device Builder. Remember to modify secrets.yaml according to your network.
+
+
 # Installation
 You might need to hold in the "boot" button while connecting with USB to the computer for flashing. This is not necessary when doing OTA updates.
+
+
 
 
 
