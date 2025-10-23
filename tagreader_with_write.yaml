@@ -84,10 +84,17 @@ api:
         std::string text = "";
         uri += music_url;
         text += music_info;
-        if ( music_url != "" ) {
+
+        // Strip ? and everything after
+        size_t pos = uri.find('?');
+        if (pos != std::string::npos) {
+          uri = uri.substr(0, pos);
+        }
+    
+        if ( uri != "" ) {
           message->add_uri_record(uri);
         }
-        if ( music_info != "" ) {
+        if ( text != "" ) {
           message->add_text_record(text);
         }
         id(pn532_board).write_mode(message);
