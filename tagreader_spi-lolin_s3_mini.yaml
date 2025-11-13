@@ -37,51 +37,11 @@ esphome:
           green: 0%
           blue: 100%
           flash_length: 500ms
-      - switch.turn_on: led_enabled
-
-switch:
-  - platform: template
-    name: "${friendly_name} LED Enabled"
-    id: led_enabled
-    icon: mdi:alarm-light-outline
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    entity_category: config
-  - platform: template
-    name: "${friendly_name} Rate Limit"
-    id: rate_limit_enabled
-    icon: mdi:car-speed-limiter
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    entity_category: config
-
-number:
-  - platform: template
-    name: "${friendly_name} Rate Limit Milliseconds"
-    id: rate_limit_time_ms
-    icon: mdi:timer-outline
-    optimistic: true
-    restore_value: true
-    initial_value: 2000
-    min_value: 500
-    max_value: 5000
-    step: 100
-    unit_of_measurement: "ms"
-    entity_category: config
-    
+   
 button:
-  - platform: template
-    name: Cancel writing
-    id: cancel_writing
-    icon: mdi:pencil-off
-    on_press:
-      then:
-        - lambda: 'id(pn532_board).read_mode();'
-        - light.turn_off:
-            id: activity_led
-
   - platform: restart
-    name: "${friendly_name} Restart"
+    name: "Restart"
+    icon: mdi:power-cycle
     entity_category: config
 
 logger:
@@ -212,6 +172,10 @@ globals:
     type: unsigned long
     restore_value: no
     initial_value: '0'
+  - id: rate_limit_ms
+    type: unsigned long
+    restore_value: no
+    initial_value: '2000'
 
 pn532_spi:
   cs_pin: GPIO5
@@ -226,9 +190,8 @@ pn532_spi:
         state: true
     - lambda: |-
         unsigned long now = millis();
-        unsigned long limit_ms = id(rate_limit_time_ms).state;
         id(lambda_result)="none";
-        if (now - id(last_scan_time) < limit_ms && id(rate_limit_enabled).state) {
+        if (now - id(last_scan_time) < id(rate_limit_ms)) {
           ESP_LOGI("nfc", "Scan ignored (cooldown active)");
           id(lambda_result)="rate_limited";
           return;  // ignore this scan
@@ -288,18 +251,10 @@ pn532_spi:
           id(source)="error";
           id(lambda_result)="none";
         }
-    - if: # Handle LED action here: If rate limited, flash yellow. Else, if read sucess, flash green. Else (read failure), flash red
+    - if: # Handle LED action here: If rate limited, do nothing. Else, if read sucess, flash green. Else (read failure), flash red
         condition:
-          lambda: 'return (id(lambda_result)=="rate_limited");'
+          lambda: 'return (id(lambda_result)!="rate_limited");'
         then:
-        - light.turn_on:
-            id: activity_led
-            brightness: 100%
-            red: 100%
-            green: 100%
-            blue: 0%
-            flash_length: 200ms
-        else:
         - if:
             condition:
               lambda: 'return id(read_success);'
@@ -338,7 +293,7 @@ pn532_spi:
 
     - if: # Lambda result = printing tag
         condition:
-          lambda: 'return (id(lambda_result)=="music_tag");'
+          lambda: 'return (id(lambda_result)=="printing_tag");'
         then:
         - homeassistant.event:
             event: esphome.print_tag
@@ -378,7 +333,7 @@ pn532_spi:
 
 binary_sensor:
   - platform: status
-    name: "${friendly_name} Status"
+    name: "Status"
     entity_category: diagnostic
   - platform: template
     name: "Tag Present"
@@ -389,15 +344,15 @@ binary_sensor:
 text_sensor:
   - platform: version
     hide_timestamp: true
-    name: "${friendly_name} ESPHome Version"
+    name: "ESPHome Version"
     entity_category: diagnostic
   - platform: wifi_info
     ip_address:
-      name: "${friendly_name} IP Address"
+      name: "IP Address"
       icon: mdi:wifi
       entity_category: diagnostic
     ssid:
-      name: "${friendly_name} Connected SSID"
+      name: "Connected SSID"
       icon: mdi:wifi-strength-2
       entity_category: diagnostic
 
@@ -409,5 +364,5 @@ light:
     flash_transition_length: 200ms
     rgb_order: GRB
     id: activity_led
-    name: "${friendly_name} LED"
+    name: "LED"
     restore_mode: ALWAYS_OFF
