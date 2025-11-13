@@ -30,7 +30,9 @@ For the LED:
 | Din     | GPIO2             |                                                                                                   |
 
 # Building
-Either install ESPhome on your computer or build directly in Home Assistant's ESPhome Device Builder. Remember to modify secrets.yaml according to your network.
+Either install ESPhome on your computer or build directly in Home Assistant's ESPhome Device Builder. 
+
+Remember to modify secrets_example.yaml according to your network and rename it to secrets.yaml before building.
 
 
 # Installation
