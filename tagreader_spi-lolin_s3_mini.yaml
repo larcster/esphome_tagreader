@@ -64,7 +64,7 @@ button:
     entity_category: config
 
 logger:
-
+#  level: VERY_VERBOSE
 api:
   services:
   - service: write_music_tag
@@ -172,7 +172,7 @@ spi:
   clk_pin: GPIO12
   miso_pin: GPIO13
   mosi_pin: GPIO11
-
+  
 globals:
   - id: source
     type: std::string
@@ -188,8 +188,8 @@ globals:
 pn532_spi:
   cs_pin: GPIO5
   id: pn532_board
+  data_rate: 200kHz
   update_interval: 200ms
-  spi_speed: 1000000  # reduce speed to prevent misreads (default 4MHz)
   on_tag:
     then:
     #- delay: 0.15s #to fix slow component
@@ -267,7 +267,7 @@ pn532_spi:
             flash_length: 500ms
     - if:
         condition:
-          lambda: 'return ( id(source)=="uid" || id(source)=="error" );'
+          lambda: 'return ( id(source)=="uid");'
         then:
           - homeassistant.tag_scanned: !lambda |-
               ESP_LOGD("tagreader", "No HA NDEF, using UID");
@@ -275,47 +275,59 @@ pn532_spi:
         else:
         - if:
             condition:
-              lambda: 'return ( id(source)=="file" );'
+              lambda: 'return ( id(source)=="error" );'
             then:
             - homeassistant.event:
-                event: esphome.print_tag
+                event: esphome.tag_read_error
                 data:
                   reader: !lambda |-
                     return App.get_name().c_str();
-                  source: !lambda |-
-                    return id(source);
-                  url: !lambda |-
-                    return id(url).erase(0,7); // erasing 'file://'
                   info: !lambda |-
                     return id(info);
             else:
             - if:
                 condition:
-                    lambda: 'return ( id(source)=="color" );'
+                  lambda: 'return ( id(source)=="file" );'
                 then:
                 - homeassistant.event:
-                    event: esphome.color_tag
+                    event: esphome.print_tag
                     data:
                       reader: !lambda |-
                         return App.get_name().c_str();
                       source: !lambda |-
                         return id(source);
                       url: !lambda |-
-                        return id(url).erase(0,8); // erasing 'color://'
+                        return id(url).erase(0,7); // erasing 'file://'
                       info: !lambda |-
                         return id(info);
                 else:
+                - if:
+                    condition:
+                        lambda: 'return ( id(source)=="color" );'
+                    then:
                     - homeassistant.event:
-                        event: esphome.music_tag
+                        event: esphome.color_tag
                         data:
                           reader: !lambda |-
                             return App.get_name().c_str();
                           source: !lambda |-
                             return id(source);
                           url: !lambda |-
-                            return id(url);
+                            return id(url).erase(0,8); // erasing 'color://'
                           info: !lambda |-
                             return id(info);
+                    else:
+                        - homeassistant.event:
+                            event: esphome.music_tag
+                            data:
+                              reader: !lambda |-
+                                return App.get_name().c_str();
+                              source: !lambda |-
+                                return id(source);
+                              url: !lambda |-
+                                return id(url);
+                              info: !lambda |-
+                                return id(info);
     # Turn off LED after short delay
     - delay: 1s
     - light.turn_off:
