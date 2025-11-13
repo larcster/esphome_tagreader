@@ -180,10 +180,21 @@ globals:
     type: std::string
   - id: info
     type: std::string
+  - id: lambda_result    # Used for more simple post-processing code block
+    type: std::string
   - id: read_success
     type: bool
     restore_value: no
     initial_value: 'false'
+    # Rate limiting functionality
+  - id: last_scan_time
+    type: unsigned long
+    restore_value: no
+    initial_value: '0'
+  - id: scan_cooldown_ms
+    type: unsigned long
+    restore_value: no
+    initial_value: '5000'   # 5 seconds cooldown
 
 pn532_spi:
   cs_pin: GPIO5
@@ -197,6 +208,13 @@ pn532_spi:
         id: tag_present
         state: true
     - lambda: |-
+        unsigned long now = millis();
+        id(lambda_result)="none";
+        if (now - id(last_scan_time) < id(scan_cooldown_ms)) {
+          ESP_LOGI("nfc", "Scan ignored (cooldown active)");
+          id(lambda_result)="rate_limited";
+          return;  // ignore this scan
+        }
         id(read_success) = false;
         id(source)="uid";
         id(url)="";
@@ -209,35 +227,40 @@ pn532_spi:
           const char *sonos_prefix="sonos-2://";
           const char *printfile_prefix="file://";
           const char *colortag_prefix="color://";
-          for (auto &record : records) {
+          for (auto &record : records) { // iterate through payload elements and determine type of message
             auto &payload = record->get_payload();
             auto &type = record->get_type();
-
-            if (type == "U"){
+            if (type == "U"){ // URI record, determine what type based on content
               id(url)=payload;
-              id(read_success) = true;
+              id(read_success) = true; // since an URI record was found, set read_success to TRUE
+              id(last_scan_time) = now;  // record new scan time
               if (payload.compare(0, strlen(applemusic_prefix), applemusic_prefix)==0){
                 ESP_LOGD("tagreader", "Found Apple Music tag NDEF");
                 id(source)="amusic";
+                id(lambda_result)="music_tag";
               }
               else if (payload.compare(0, strlen(spotify_prefix), spotify_prefix)==0){
                 ESP_LOGD("tagreader", "Found Spotify tag NDEF");
                 id(source)="spotify";
+                id(lambda_result)="music_tag";
               }
               else if (payload.compare(0, strlen(sonos_prefix), sonos_prefix)==0){
                 ESP_LOGD("tagreader", "Found Sonos app tag NDEF");
                 id(source)="sonos";
+                id(lambda_result)="music_tag";
               }
               else if (payload.compare(0, strlen(printfile_prefix), printfile_prefix)==0){
                 ESP_LOGD("tagreader", "Found print tag NDEF");
                 id(source)="file";
+                id(lambda_result)="print_tag";
               }
               else if (payload.compare(0, strlen(colortag_prefix), colortag_prefix)==0){
                 ESP_LOGD("tagreader", "Found color tag NDEF");
                 id(source)="color";
+                id(lambda_result)="color_tag";
                 }
             }
-            else if (type == "T" ) {
+            else if (type == "T" ) { // Text record, set as info
               ESP_LOGD("tagreader", "Found info tag NDEF");
               id(info)=payload;
             }
@@ -245,94 +268,88 @@ pn532_spi:
         }
         else {
           id(source)="error";
+          id(lambda_result)="none";
         }
-    - if:
+    - if: # Handle LED action here: If rate limited, flash yellow. Else, if read sucess, flash green. Else (read failure), flash red
         condition:
-          lambda: 'return id(read_success);'
+          lambda: 'return (id(lambda_result)=="rate_limited");'
         then:
-        - light.turn_on:
-            id: activity_led
-            brightness: 100%
-            red: 0%
-            green: 100%
-            blue: 0%
-            flash_length: 500ms
-        else:
         - light.turn_on:
             id: activity_led
             brightness: 100%
             red: 100%
-            green: 0%
+            green: 100%
             blue: 0%
-            flash_length: 500ms
-    - if:
-        condition:
-          lambda: 'return ( id(source)=="uid");'
-        then:
-          - homeassistant.tag_scanned: !lambda |-
-              ESP_LOGD("tagreader", "No HA NDEF, using UID");
-              return x;
+            flash_length: 200ms
         else:
         - if:
             condition:
-              lambda: 'return ( id(source)=="error" );'
+              lambda: 'return id(read_success);'
             then:
-            - homeassistant.event:
-                event: esphome.tag_read_error
-                data:
-                  reader: !lambda |-
-                    return App.get_name().c_str();
-                  info: !lambda |-
-                    return id(info);
+            - light.turn_on:
+                id: activity_led
+                brightness: 100%
+                red: 0%
+                green: 100%
+                blue: 0%
+                flash_length: 500ms
             else:
-            - if:
-                condition:
-                  lambda: 'return ( id(source)=="file" );'
-                then:
-                - homeassistant.event:
-                    event: esphome.print_tag
-                    data:
-                      reader: !lambda |-
-                        return App.get_name().c_str();
-                      source: !lambda |-
-                        return id(source);
-                      url: !lambda |-
-                        return id(url).erase(0,7); // erasing 'file://'
-                      info: !lambda |-
-                        return id(info);
-                else:
-                - if:
-                    condition:
-                        lambda: 'return ( id(source)=="color" );'
-                    then:
-                    - homeassistant.event:
-                        event: esphome.color_tag
-                        data:
-                          reader: !lambda |-
-                            return App.get_name().c_str();
-                          source: !lambda |-
-                            return id(source);
-                          url: !lambda |-
-                            return id(url).erase(0,8); // erasing 'color://'
-                          info: !lambda |-
-                            return id(info);
-                    else:
-                        - homeassistant.event:
-                            event: esphome.music_tag
-                            data:
-                              reader: !lambda |-
-                                return App.get_name().c_str();
-                              source: !lambda |-
-                                return id(source);
-                              url: !lambda |-
-                                return id(url);
-                              info: !lambda |-
-                                return id(info);
-    # Turn off LED after short delay
-    - delay: 1s
-    - light.turn_off:
-        id: activity_led
-        transition_length: 0ms
+            - light.turn_on:
+                id: activity_led
+                brightness: 100%
+                red: 100%
+                green: 0%
+                blue: 0%
+                flash_length: 500ms
+        
+    - if: # Lambda result = music tag
+        condition:
+          lambda: 'return (id(lambda_result)=="music_tag");'
+        then:
+        - homeassistant.event:
+            event: esphome.music_tag
+            data:
+              reader: !lambda |-
+                return App.get_name().c_str();
+              source: !lambda |-
+                return id(source);
+              url: !lambda |-
+                return id(url);
+              info: !lambda |-
+                return id(info);
+
+    - if: # Lambda result = printing tag
+        condition:
+          lambda: 'return (id(lambda_result)=="music_tag");'
+        then:
+        - homeassistant.event:
+            event: esphome.print_tag
+            data:
+              reader: !lambda |-
+                return App.get_name().c_str();
+              source: !lambda |-
+                return id(source);
+              url: !lambda |-
+                return id(url).erase(0,7); // erasing 'file://'
+              info: !lambda |-
+                return id(info);
+
+    - if: # Lambda result = color tag
+        condition:
+          lambda: 'return (id(lambda_result)=="color_tag");'
+        then:
+        - homeassistant.event:
+            event: esphome.color_tag
+            data:
+              reader: !lambda |-
+                return App.get_name().c_str();
+              source: !lambda |-
+                return id(source);
+              url: !lambda |-
+                return id(url).erase(0,8); // erasing 'color://'
+              info: !lambda |-
+                return id(info);
+               
   on_tag_removed:
     then:
     - binary_sensor.template.publish:
