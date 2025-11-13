@@ -1,1 +1,5 @@
+# Ignore secrets.yaml - this file contains wifi credentials
 secrets.yaml
+
+# Ignore buld output folder
+.esphome/
