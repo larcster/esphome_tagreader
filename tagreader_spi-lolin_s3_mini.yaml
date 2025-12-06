@@ -1,17 +1,7 @@
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  ap:
-    ssid: ${name}
-    password: !secret fallback_password
-
 captive_portal:
 
 improv_serial:
 
-substitutions:
-  name: tagreader
-  friendly_name: TagReader
 esp32:
  variant: esp32s3
  board: lolin_s3_mini
@@ -20,6 +10,7 @@ esp32:
 
 esphome:
   name: $name
+  friendly_name: $friendly_name
   name_add_mac_suffix: true
   project:
     name: Bergtveit.Tagreader

@@ -1,0 +1,22 @@
+substitutions:
+  name: tagreader--sverres-rom
+  friendly_name: Tagreader - Sverres Rom
+   
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: ${name}
+    password: !secret fallback_password
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "XXX"
+
+ota:
+  - platform: esphome
+    password: "YYY"
+
+packages:
+  base: github://larcster/esphome_tagreader/tagreader_spi-lolin_s3_mini.yaml@main
