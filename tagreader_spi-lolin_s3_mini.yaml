@@ -1,7 +1,7 @@
 captive_portal:
 
 improv_serial:
-
+    
 esp32:
  variant: esp32s3
  board: lolin_s3_mini
