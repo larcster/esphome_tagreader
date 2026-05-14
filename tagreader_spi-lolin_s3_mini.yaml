@@ -204,6 +204,7 @@ pn532_spi:
             auto &type = record->get_type();
             if (type == "U"){ // URI record, determine what type based on content
               id(url)=payload;
+              id(source)="url";
               id(read_success) = true; // since an URI record was found, set read_success to TRUE
               id(last_scan_time) = now;  // record new scan time
               if (payload.compare(0, strlen(applemusic_prefix), applemusic_prefix)==0){
@@ -237,10 +238,18 @@ pn532_spi:
               id(info)=payload;
             }
           }
+          if (id(lambda_result)=="none") {
+            ESP_LOGD("tagreader", "Found unclassified NDEF tag");
+            id(lambda_result)="generic_tag";
+            id(read_success) = true;
+            id(last_scan_time) = now;
+          }
         }
         else {
-          id(source)="error";
-          id(lambda_result)="none";
+          id(source)="uid";
+          id(read_success) = true;
+          id(last_scan_time) = now;
+          id(lambda_result)="generic_tag";
         }
     - if: # Handle LED action here: If rate limited, do nothing. Else, if read sucess, flash green. Else (read failure), flash red
         condition:
@@ -284,7 +293,7 @@ pn532_spi:
 
     - if: # Lambda result = printing tag
         condition:
-          lambda: 'return (id(lambda_result)=="printing_tag");'
+          lambda: 'return (id(lambda_result)=="print_tag");'
         then:
         - homeassistant.event:
             event: esphome.print_tag
@@ -311,6 +320,22 @@ pn532_spi:
                 return id(source);
               url: !lambda |-
                 return id(url).erase(0,8); // erasing 'color://'
+              info: !lambda |-
+                return id(info);
+
+    - if: # Lambda result = generic/unclassified tag
+        condition:
+          lambda: 'return (id(lambda_result)=="generic_tag");'
+        then:
+        - homeassistant.event:
+            event: esphome.tag
+            data:
+              reader: !lambda |-
+                return App.get_name().c_str();
+              source: !lambda |-
+                return id(source);
+              url: !lambda |-
+                return id(url);
               info: !lambda |-
                 return id(info);
                
