@@ -284,6 +284,8 @@ pn532_spi:
             data:
               reader: !lambda |-
                 return App.get_name().c_str();
+              tag_id: !lambda |-
+                return x;
               source: !lambda |-
                 return id(source);
               url: !lambda |-
@@ -300,6 +302,8 @@ pn532_spi:
             data:
               reader: !lambda |-
                 return App.get_name().c_str();
+              tag_id: !lambda |-
+                return x;
               source: !lambda |-
                 return id(source);
               url: !lambda |-
@@ -316,6 +320,8 @@ pn532_spi:
             data:
               reader: !lambda |-
                 return App.get_name().c_str();
+              tag_id: !lambda |-
+                return x;
               source: !lambda |-
                 return id(source);
               url: !lambda |-
@@ -332,6 +338,8 @@ pn532_spi:
             data:
               reader: !lambda |-
                 return App.get_name().c_str();
+              tag_id: !lambda |-
+                return x;
               source: !lambda |-
                 return id(source);
               url: !lambda |-
@@ -346,6 +354,11 @@ pn532_spi:
         state: false
     - homeassistant.event:
         event: esphome.tag_removed
+        data:
+          reader: !lambda |-
+            return App.get_name().c_str();
+          tag_id: !lambda |-
+            return x;
 
 binary_sensor:
   - platform: status
